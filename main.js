@@ -51,6 +51,36 @@ Animation.prototype.isDone = function () {
     return (this.elapsedTime >= this.totalTime);
 }
 
+function PlayGame(game, x, y) {
+    Entity.call(this, game, x, y);
+}
+
+PlayGame.prototype = new Entity();
+PlayGame.prototype.constructor = PlayGame;
+
+PlayGame.prototype.reset = function () {
+    this.game.running = false;
+}
+
+PlayGame.prototype.update = function () {
+    console.log(this.game);
+    if (this.game.click && this.game.mario.lives > 0) this.game.running = true;
+}
+
+PlayGame.prototype.draw = function (ctx) {
+    if (!this.game.running) {
+        ctx.font = "24pt Impact";
+        ctx.fillStyle = "red";
+        if (this.game.mouse) { ctx.fillStyle = "blue"; }
+        if (this.game.mario.lives > 0) {
+            ctx.fillText("Click to Start", this.x, this.y);
+        }
+        else {
+            ctx.fillText("Game Over", this.x - 30, this.y);
+        }
+    }
+}
+
 function Background(game) {
     Entity.call(this, game, 0, 0);
     this.radius = 200;
@@ -95,6 +125,9 @@ Turtle.prototype.update = function () {
         this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
     this.x += this.dx;
     this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
+    if (this.tboundingbox.collide(this.game.mario.BoundingBox)) {
+
+    }
 }
 
 Turtle.prototype.draw = function (ctx) {
@@ -157,34 +190,6 @@ BoundingBox.prototype.collide = function (oth) {
     return false;
 }
 
-function PlayGame(game, x, y) {
-    Entity.call(this, game, x, y);
-}
-
-PlayGame.prototype = new Entity();
-PlayGame.prototype.constructor = PlayGame;
-
-PlayGame.prototype.reset = function () {
-    this.game.running = false;
-}
-PlayGame.prototype.update = function () {
-    if (this.game.click && this.game.unicorn.lives > 0) this.game.running = true;
-}
-
-PlayGame.prototype.draw = function (ctx) {
-    if (!this.game.running) {
-        ctx.font = "24pt Impact";
-        ctx.fillStyle = "green";
-        if (this.game.mouse) { ctx.fillStyle = "red"; }
-        if (this.game.unicorn.lives > 0) {
-            ctx.fillText("Click to Play!", this.x, this.y);
-        }
-        else {
-            ctx.fillText("Game Over Man!", this.x - 30, this.y);
-        }
-    }
-}
-
 function Platform(game, x, y, width, height) {
     this.width = width;
     this.height = height;
@@ -216,8 +221,8 @@ Platform.prototype.draw = function (ctx) {
 }
 
 Platform.prototype.reset = function () {
-    this.x = this.startX;
-    this.y = this.startY;
+    this.platformX = this.startX;
+    this.platformY = this.startY;
 }
 
 
@@ -225,6 +230,8 @@ function Mario(game) {
     this.standingAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSprites.png"), 0, 0, 18, 27, 0.05, 1, true, true);
     this.standingrAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 452, 0, 18, 27, 0.05, 1, true, true);
     this.jumpAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSprites.png"), 103, 0, 18, 27, 0.50, 2, false, true);
+    this.fallingAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSprites.png"), 120, 0, 18, 27, 0.05, 1, true, true);
+    this.fallingAnimationr = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 366, 0, 18, 27, 0.05, 1, true, true);
     this.jumpAnimationr = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 349, 0, 18, 27, 0.50, 2, false, true);
     this.walkingAnimationRight = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSprites.png"), 1, 0, 17, 27, 0.06, 2, true, true);
     this.walkingAnimationLeft = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 452, 0, 18, 27, 0.06, 2, true, true);
@@ -235,11 +242,14 @@ function Mario(game) {
     this.duckAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSprites.png"), 154, 0, 18, 27, 0.05, 1, true, true);
     this.duckrAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 316, 0, 18, 27, 0.05, 1, true, true);
     this.jumping = false;
+    this.falling = false;
+    this.lives = 1;
+    this.dead = false;
     this.radius = 100;
     this.ground = 406;
     this.platform = game.platforms[0];
     Entity.call(this, game, 400, 406);
-    this.BoundingBox = new BoundingBox(this.x, this.y, 18, 27);
+    this.BoundingBox = new BoundingBox(this.x, this.y + 6, 18, 21);
     this.lastbottom = this.BoundingBox.bottom;
 }
 
@@ -252,56 +262,43 @@ Mario.prototype.reset = function () {
     this.game.lives.innerHTML = "Lives: " + this.lives;
     this.x = 0;
     this.y = 400;
-    //this.platform = this.game.platforms[0];
-    //this.boundingbox = new BoundingBox(this.x + 25, this.y, this.animation.frameWidth - 40, this.animation.frameHeight - 20);
+    this.platform = this.game.platforms[0];
+    this.boundingbox = new BoundingBox(this.x, this.y, 18, 27);
 }
 
 Mario.prototype = new Entity();
 Mario.prototype.constructor = Mario;
 
 Mario.prototype.update = function () {
-    if (this.game.space) this.jumping = true;
-    if (this.jumping && !this.reversed) {
-        if (this.jumpAnimation.isDone()) {
-            this.jumpAnimation.elapsedTime = 0;
-            this.jumping = false;
+    if (this.game.running) {
+        if (this.dead) {
+            this.game.reset();
+            return;
         }
-        var jumpDistance = this.jumpAnimation.elapsedTime / this.jumpAnimation.totalTime;
-        var totalHeight = 100;
+        if (this.game.space) this.jumping = true;
+        if (this.jumping && !this.reversed) {
+            var jumpDistance = this.jumpAnimation.elapsedTime / this.jumpAnimation.totalTime;
+            var totalHeight = 100;
 
-        if (jumpDistance > 0.5)
-            jumpDistance = 1 - jumpDistance;
+            if (jumpDistance > 0.5)
+                jumpDistance = 1 - jumpDistance;
 
-        var height = totalHeight * (-4 * (jumpDistance * jumpDistance - jumpDistance));
-        this.y = this.platform.boundingbox.top - height - 27;
-        /**for (var i = 0; i < this.game.platforms.length; i++) {
-            var pf = this.game.platforms[i];
-            if (this.BoundingBox.collide(pf.boundingbox) && this.lastBottom < pf.boundingbox.top) {
-                console.log("Landing Detected!");
-                this.jumping = false;
-                this.y = pf.boundingbox.top - this.animation.frameHeight + 10;
-                this.platform = pf;
-                this.jumpAnimation.elapsedTime = 0;
-            }
-        }*/
-    } else if (this.jumping && this.reversed) {
-        if (this.jumpAnimationr.isDone()) {
-            this.jumpAnimationr.elapsedTime = 0;
-            this.jumping = false;
+            var height = totalHeight * (-4 * (jumpDistance * jumpDistance - jumpDistance));
+            this.y = this.platform.boundingbox.top - height - 27;
+        } else if (this.jumping && this.reversed) {
+            var jumpDistance = this.jumpAnimationr.elapsedTime / this.jumpAnimationr.totalTime;
+            var totalHeight = 100;
+
+            if (jumpDistance > 0.5)
+                jumpDistance = 1 - jumpDistance;
+
+            var height = totalHeight * (-4 * (jumpDistance * jumpDistance - jumpDistance));
+            this.y = this.platform.boundingbox.top - height - 27;
         }
-        var jumpDistance = this.jumpAnimationr.elapsedTime / this.jumpAnimationr.totalTime;
-        var totalHeight = 100;
-
-        if (jumpDistance > 0.5)
-            jumpDistance = 1 - jumpDistance;
-
-        var height = totalHeight * (-4 * (jumpDistance * jumpDistance - jumpDistance));
-        this.y = this.platform.boundingbox.top - height - 27;
-    }
-    if (this.game.right && !this.jumping) this.right = true;
-    if (!this.game.right) this.right = false;
-    if (this.right) {
-        this.reversed = false;
+        if (this.game.right && !this.jumping) this.right = true;
+        if (!this.game.right) this.right = false;
+        if (this.right) {
+            this.reversed = false;
             if (this.walkingAnimationRight.isDone()) {
                 this.walkingAnimationRight.elapsedTime = 0;
                 this.right = false;
@@ -348,46 +345,103 @@ Mario.prototype.update = function () {
                 this.runningAnimationLeft.elapsedTime = 0;
             }
         }
+        if (!this.jumping && !this.falling) {
+            if (this.BoundingBox.left > this.platform.boundingbox.right || this.BoundingBox.right < this.platform.boundingbox.left) this.falling = true;
+        }
+        if (this.falling) {
+            this.lastBottom = this.BoundingBox.bottom;
+            this.y += this.game.clockTick / this.jumpAnimation.totalTime * 4 * 100;
+            //console.log(this.jumpHeight);
+            this.BoundingBox = new BoundingBox(this.x, this.y + 6, 18, 21);
+            for (var i = 0; i < this.game.platforms.length; i++) {
+                var pf = this.game.platforms[i];
+                if (this.BoundingBox.collide(pf.boundingbox) && this.lastBottom < pf.boundingbox.top) {
+                    this.falling = false;
+                    this.y = pf.boundingbox.top - 27;
+                    this.platform = pf;
+                    this.fallingAnimation.elapsedTime = 0;
+                    console.log("Got here.");
+                }
+            }
+        }
         this.lastbottom = this.BoundingBox.bottom;
-        this.BoundingBox = new BoundingBox(this.x, this.y, 18, 27);
-        if (this.jumping) {
+        this.BoundingBox = new BoundingBox(this.x, this.y + 6, 18, 21);
+        if (this.jumping && !this.reversed) {
             for (var i = 0; i < this.game.platforms.length; i++) {
                 var pf = this.game.platforms[i];
                 if (this.BoundingBox.collide(pf.boundingbox) && this.lastbottom < pf.boundingbox.top) {
-                    console.log("Landing Detected!");
                     this.jumping = false;
                     this.y = pf.boundingbox.top - 27;
                     this.platform = pf;
                     this.jumpAnimation.elapsedTime = 0;
                 }
-                /**if (this.BoundingBox.collide(pf.boundingbox) && pf.boundingbox.left) {
+                /**if (this.BoundingBox.collide(pf.boundingbox) && this.BoundingBox.top < pf.boundingbox.bottom) {
+                    this.jumping = false;
+                    this.y = pf.boundingbox.bottom - 4;
+                    this.platform = pf;
+                    this.jumpAnimation.elapsedTime = 0;
+                    //this.falling = true;
+                }
+                if (this.BoundingBox.collide(pf.boundingbox) && this.BoundingBox.right > pf.boundingbox.left) {
                     console.log("Left Hit Detected!");
-                    this.jumping = false;
-                    this.y = pf.boundingbox.top - this.animation.frameHeight + 10;
+                    this.x = pf.boundingbox.left - 18;
                     this.platform = pf;
-                }
-                if (this.BoundingBox.collide(pf.boundingbox) && pf.boundingbox.right) {
+                } /**else if (this.BoundingBox.collide(pf.boundingbox) && this.BoundingBox.left > pf.boundingbox.right) {
                     console.log("Right Hit Detected!");
-                    this.jumping = false;
-                    this.y = pf.boundingbox.top - this.animation.frameHeight + 10;
+                    this.x = pf.boundingbox.right + 18;
                     this.platform = pf;
-                }
-                if (this.BoundingBox.collide(pf.boundingbox) && pf.boundingbox.bottom) {
-                    console.log("Bump Detected!");
-                    this.jumping = false;
-                    this.y = pf.boundingbox.top - this.animation.frameHeight + 10;
-                    this.platform = pf;
-                }*/
+                } */
             }
+            if (this.jumpAnimation.isDone()) {
+                this.jumpAnimation.elapsedTime = 0;
+                this.jumping = false;
+                this.falling = true;
+            }
+        } else if (this.jumping && this.reversed) {
+            for (var i = 0; i < this.game.platforms.length; i++) {
+                var pf = this.game.platforms[i];
+                if (this.BoundingBox.collide(pf.boundingbox) && this.lastbottom < pf.boundingbox.top) {
+                    this.jumping = false;
+                    this.y = pf.boundingbox.top - 27;
+                    this.platform = pf;
+                    this.jumpAnimationr.elapsedTime = 0;
+                } /**else if (this.BoundingBox.collide(pf.boundingbox) && this.BoundingBox.top < pf.boundingbox.bottom) {
+                    this.jumping = false;
+                    this.y = pf.boundingbox.bottom - 4;
+                    this.platform = pf;
+                    this.jumpAnimationr.elapsedTime = 0;
+                    //this.falling = true;
+                } /**else if (this.BoundingBox.collide(pf.boundingbox) && pf.boundingbox.left) {
+                    console.log("Left Hit Detected!");
+                    this.x = pf.boundingbox.left - 18;
+                    this.platform = pf;
+                } /**else if (this.BoundingBox.collide(pf.boundingbox) && pf.boundingbox.right) {
+                    console.log("Right Hit Detected!");
+                    this.x = pf.boundingbox.right + 18;
+                    this.platform = pf;
+                } */
+            }
+            if (this.jumpAnimationr.isDone()) {
+                this.jumpAnimationr.elapsedTime = 0;
+                this.jumping = false;
+                this.falling = true;
+            }
+            if (this.y > this.game.ctx.canvas.height) this.dead = true;
         }
+    }
         Entity.prototype.update.call(this);
 }
 
 Mario.prototype.draw = function (ctx) {
+    if (this.dead || !this.game.running) return;
     if (this.jumping && !this.reversed) {
         this.jumpAnimation.drawFrame(this.game.clockTick, ctx, this.x, this.y);
     } else if (this.jumping && this.reversed) {
         this.jumpAnimationr.drawFrame(this.game.clockTick, ctx, this.x, this.y);
+    } else if (this.falling && !this.reversed) {
+        this.fallingAnimation.drawFrame(this.game.clockTick, ctx, this.x, this.y);
+    } else if (this.falling && this.reversed) {
+        this.fallingAnimationr.drawFrame(this.game.clockTick, ctx, this.x, this.y);
     } else if (this.right) {
         this.walkingAnimationRight.drawFrame(this.game.clockTick, ctx, this.x, this.y);
     } else if (this.left) {
@@ -702,6 +756,10 @@ ASSET_MANAGER.downloadAll(function () {
     var coin = new Coin(gameEngine, 822, 168);
 
     gameEngine.addEntity(mario);
+    gameEngine.mario = mario;
+    var pg = new PlayGame(gameEngine, 320, 350);
+    gameEngine.addEntity(pg);
+
     for (var x = 0; x < 11; x++) {
         gameEngine.addEntity(turtles[x]);
     }
