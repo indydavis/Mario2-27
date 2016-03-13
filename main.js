@@ -63,8 +63,10 @@ PlayGame.prototype.reset = function () {
 }
 
 PlayGame.prototype.update = function () {
-    console.log(this.game);
-    if (this.game.click && this.game.mario.lives > 0) this.game.running = true;
+    if (this.game.click) {
+        this.game.running = true;
+        this.game.mario.dead = false;
+    }
 }
 
 PlayGame.prototype.draw = function (ctx) {
@@ -72,12 +74,7 @@ PlayGame.prototype.draw = function (ctx) {
         ctx.font = "24pt Impact";
         ctx.fillStyle = "red";
         if (this.game.mouse) { ctx.fillStyle = "blue"; }
-        if (this.game.mario.lives > 0) {
-            ctx.fillText("Click to Start", this.x, this.y);
-        }
-        else {
-            ctx.fillText("Game Over", this.x - 30, this.y);
-        }
+        ctx.fillText("Click to Start", this.x, this.y);
     }
 }
 
@@ -90,10 +87,12 @@ Background.prototype = new Entity();
 Background.prototype.constructor = Background;
 
 Background.prototype.update = function () {
-    if (this.game.right && this.x > (0 - 7000))
-        this.x -= 2;
-    if (this.game.left && this.x < 0)
-        this.x += 2;
+    if (this.game.running) {
+        if (this.game.right && this.x > (0 - 7000))
+            this.x -= 2;
+        if (this.game.left && this.x < 0)
+            this.x += 2;
+    }
 }
 
 Background.prototype.draw = function (ctx) {
@@ -101,7 +100,12 @@ Background.prototype.draw = function (ctx) {
     Entity.prototype.draw.call(this);
 }
 
-function Turtle(game, startingX, startingY) {
+Background.prototype.reset = function () {
+    this.x = 0;
+    this.y = 0;
+}
+
+function Turtle(game, startingX, startingY, pf) {
     this.walkR = new Animation(ASSET_MANAGER.getAsset("./img/turtle-spritesheet.png"), 0, 45, 25, 45, 0.10, 8, true, false);
     this.walkL = new Animation(ASSET_MANAGER.getAsset("./img/turtle-spritesheet.png"), 0, 0, 25, 45, 0.10, 8, true, false);
     this.timer = 0;
@@ -109,39 +113,65 @@ function Turtle(game, startingX, startingY) {
     this.turtleX = startingX;
     this.turtleY = startingY;
     this.dx = 0;
+    this.pf = pf.boundingbox;
     this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
-    Entity.call(this, game, this.x, this.y);
+    Entity.call(this, game, this.turtleX, this.turtleY);
 }
 
 Turtle.prototype = new Entity();
 Turtle.prototype.constructor = Turtle;
 
 Turtle.prototype.update = function () {
-    if (this.game.right)
-        this.turtleX -= 2;
+    if (this.game.running) {
+        if (this.game.right) {
+            this.turtleX -= 2;
+            this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
+        }
+        if (this.game.left) {
+            this.turtleX += 2;
+            this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
+        }
+        if (this.tboundingbox.left < this.pf.left) {
+            this.x += this.dx;
+        } else if (this.tboundingbox.righ > this.pf.right) {
+            this.x -= this.dx;
+        }
         this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
-    if (this.game.left && this.turtleX < this.maxX)
-        this.turtleX += 2;
-        this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
-    this.x += this.dx;
-    this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45);
-    if (this.tboundingbox.collide(this.game.mario.BoundingBox)) {
-
+        if (this.tboundingbox.collide(this.game.mario.BoundingBox)) {
+            this.game.mario.dead = true;
+        }
     }
 }
 
 Turtle.prototype.draw = function (ctx) {
     if (this.dx > 0) {
         this.walkR.drawFrame(this.game.clockTick, ctx, this.turtleX, this.turtleY);
+        Entity.prototype.draw.call(this);
+        ctx.strokeStyle = "Green";
+        ctx.strokeRect(this.tboundingbox.x, this.tboundingbox.y, this.tboundingbox.width, this.tboundingbox.height);
+        ctx.stroke();
     } else {
         this.walkL.drawFrame(this.game.clockTick, ctx, this.turtleX, this.turtleY);
+        Entity.prototype.draw.call(this);
+        ctx.strokeStyle = "Green";
+        ctx.strokeRect(this.tboundingbox.x, this.tboundingbox.y, this.tboundingbox.width, this.tboundingbox.height);
+        ctx.stroke();
     }
+}
+
+Turtle.prototype.reset = function () {
+    this.turtleX = this.x;
+    this.turtleY = this.y;
+    this.tboundingbox = new BoundingBox(this.turtleX, this.turtleY, 25, 45)
 }
 
 function Coin(game, posX, posY) {
     this.coinX = posX;
     this.coinY = posY;
     this.maxX = posX;
+    this.radius = 15;
+    this.isCoin = 1;
+    this.cboundingbox = new BoundingBox(this.x, this.y, 5, 10);
     Entity.call(this, game, this.x, this.y);
 }
 
@@ -149,29 +179,41 @@ Coin.prototype = new Entity();
 Coin.prototype.constructor = Coin;
 
 Coin.prototype.update = function () {
-    if (this.game.right)
-        this.coinX -= 2;
-    if (this.game.left && this.coinX < this.maxX)
-        this.coinX += 2;
+    if (this.game.running) {
+        if (this.game.right) {
+            this.coinX -= 2;
+            this.cboundingbox = new BoundingBox(this.coinX, this.coinY, 5, 10);
+        }
+        if (this.game.left && this.coinX < this.maxX) {
+            this.coinX += 2;
+            this.cboundingbox = new BoundingBox(this.coinX, this.coinY, 5, 10);
+        }
+        if (this.cboundingbox.collide(this.game.mario.BoundingBox)) {
+            this.game.mario.gameScore++;
+            console.log("Score: " + this.game.mario.gameScore);
+            this.removeFromWorld = true;
+        }
+    }
 }
 
 Coin.prototype.draw = function (ctx) {
     ctx.drawImage(ASSET_MANAGER.getAsset("./img/coin.png"), this.coinX, this.coinY);
     Entity.prototype.draw.call(this);
+    ctx.strokeStyle = "Green";
+    ctx.strokeRect(this.cboundingbox.x, this.cboundingbox.y, this.cboundingbox.width, this.cboundingbox.height);
+    ctx.stroke();
 }
 
-/**GameEngine.prototype.reset = function () {
+Coin.prototype.reset = function () {
+    this.coinX = this.x;
+    this.coinY = this.y;
+}
+
+GameEngine.prototype.reset = function () {
     for (var i = 0; i < this.entities.length; i++) {
         this.entities[i].reset();
     }
 }
-
-function Entity(game, x, y) {
-    this.game = game;
-    this.x = x;
-    this.y = y;
-    this.removeFromWorld = false;
-}*/
 
 function BoundingBox(x, y, width, height) {
     this.x = x;
@@ -204,13 +246,15 @@ Platform.prototype = new Entity();
 Platform.prototype.constructor = Platform;
 
 Platform.prototype.update = function () {
-    if (this.game.right) {
-        this.platformX -= 2;
-        this.boundingbox = new BoundingBox(this.platformX, this.platformY, this.width, this.height);
-    }
-    if (this.game.left && this.platformX < this.originalX) {
-        this.platformX += 2;
-        this.boundingbox = new BoundingBox(this.platformX, this.platformY, this.width, this.height);
+    if (this.game.running) {
+        if (this.game.right) {
+            this.platformX -= 2;
+            this.boundingbox = new BoundingBox(this.platformX, this.platformY, this.width, this.height);
+        }
+        if (this.game.left && this.platformX < this.originalX) {
+            this.platformX += 2;
+            this.boundingbox = new BoundingBox(this.platformX, this.platformY, this.width, this.height);
+        }
     }
 }
 
@@ -223,6 +267,7 @@ Platform.prototype.draw = function (ctx) {
 Platform.prototype.reset = function () {
     this.platformX = this.startX;
     this.platformY = this.startY;
+    this.boundingbox = new BoundingBox(this.platformX, this.platformY, this.width, this.height);
 }
 
 
@@ -243,7 +288,6 @@ function Mario(game) {
     this.duckrAnimation = new Animation(ASSET_MANAGER.getAsset("./img/SMarioSpritesReversed.png"), 316, 0, 18, 27, 0.05, 1, true, true);
     this.jumping = false;
     this.falling = false;
-    this.lives = 1;
     this.dead = false;
     this.radius = 100;
     this.ground = 406;
@@ -251,19 +295,6 @@ function Mario(game) {
     Entity.call(this, game, 400, 406);
     this.BoundingBox = new BoundingBox(this.x, this.y + 6, 18, 21);
     this.lastbottom = this.BoundingBox.bottom;
-}
-
-Mario.prototype.reset = function () {
-    this.jumping = false;
-    this.falling = false;
-    this.dead = false;
-    this.lives--;
-    if (this.lives < 0) this.lives = 0;
-    this.game.lives.innerHTML = "Lives: " + this.lives;
-    this.x = 0;
-    this.y = 400;
-    this.platform = this.game.platforms[0];
-    this.boundingbox = new BoundingBox(this.x, this.y, 18, 27);
 }
 
 Mario.prototype = new Entity();
@@ -360,7 +391,6 @@ Mario.prototype.update = function () {
                     this.y = pf.boundingbox.top - 27;
                     this.platform = pf;
                     this.fallingAnimation.elapsedTime = 0;
-                    console.log("Got here.");
                 }
             }
         }
@@ -469,6 +499,14 @@ Mario.prototype.draw = function (ctx) {
     ctx.stroke();
 }
 
+Mario.prototype.reset = function () {
+    this.jumping = false;
+    this.falling = false;
+    this.y = 406;
+    this.platform = this.game.platforms[0];
+    this.BoundingBox = new BoundingBox(this.x, this.y, 18, 27);
+}
+
 // the "main" code begins here
 
 var ASSET_MANAGER = new AssetManager();
@@ -489,11 +527,13 @@ ASSET_MANAGER.downloadAll(function () {
     var gameEngine = new GameEngine();
     var bg = new Background(gameEngine);
     gameEngine.addEntity(bg);
+    var turtles = [];
     //Ground platform
     var pf = new Platform(gameEngine, 0, 432, 1607, 69);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 1835, 432, 364, 69);
+    turtles[1] = new Turtle(gameEngine, 1900, 392, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     var pf = new Platform(gameEngine, 2263, 432, 30, 69);
@@ -556,6 +596,7 @@ ASSET_MANAGER.downloadAll(function () {
     platforms.push(pf);
     pf = new Platform(gameEngine, 1752, 291, 159, 29);
     gameEngine.addEntity(pf);
+    turtles[0] = new Turtle(gameEngine, 1800, 250, pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 2004, 132, 127, 29);
     gameEngine.addEntity(pf);
@@ -585,6 +626,7 @@ ASSET_MANAGER.downloadAll(function () {
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 3057, 215, 383, 29);
+    turtles[2] = new Turtle(gameEngine, 3236, 173, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 3057, 245, 31, 59);
@@ -647,7 +689,7 @@ ASSET_MANAGER.downloadAll(function () {
     pf = new Platform(gameEngine, 4178, 276, 95, 29);
     gameEngine.addEntity(pf);
     platforms.push(pf);
-    pf = new Platform(gameEngine, 4242, 336, 63, 29);
+    pf = new Platform(gameEngine, 4242, 365, 63, 29);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 4242, 306, 31, 59);
@@ -696,15 +738,19 @@ ASSET_MANAGER.downloadAll(function () {
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 5239, 62, 671, 29);
+    turtles[3] = new Turtle(gameEngine, 5389, 22, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 5237, 164, 671, 29);
+    turtles[4] = new Turtle(gameEngine, 5507, 124, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 5238, 252, 671, 29);
+    turtles[5] = new Turtle(gameEngine, 5753, 211, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 5237, 359, 671, 29);
+    turtles[6] = new Turtle(gameEngine, 5850, 319, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 5944, 108, 31, 29);
@@ -717,15 +763,19 @@ ASSET_MANAGER.downloadAll(function () {
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 6088, 109, 95, 29);
+    turtles[7] = new Turtle(gameEngine, 6131, 69, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 6223, 109, 95, 29);
+    turtles[8] = new Turtle(gameEngine, 6263, 69, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 6407, 109, 95, 29);
+    turtles[9] = new Turtle(gameEngine, 6443, 69, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     pf = new Platform(gameEngine, 6544, 109, 95, 29);
+    turtles[10] = new Turtle(gameEngine, 6583, 69, pf);
     gameEngine.addEntity(pf);
     platforms.push(pf);
     //Flag
@@ -739,31 +789,139 @@ ASSET_MANAGER.downloadAll(function () {
 
     gameEngine.platforms = platforms;
     var mario = new Mario(gameEngine);
-    var turtles = [];
 
-    turtles[0] = new Turtle(gameEngine, 1800, 250);
-    turtles[1] = new Turtle(gameEngine, 1900, 392);
-    turtles[2] = new Turtle(gameEngine, 3236, 173);
-    turtles[3] = new Turtle(gameEngine, 5389, 22);
-    turtles[4] = new Turtle(gameEngine, 5507, 124);
-    turtles[5] = new Turtle(gameEngine, 5753, 211);
-    turtles[6] = new Turtle(gameEngine, 5850, 319);
-    turtles[7] = new Turtle(gameEngine, 6131, 69);
-    turtles[8] = new Turtle(gameEngine, 6263, 69);
-    turtles[9] = new Turtle(gameEngine, 6443, 69);
-    turtles[10] = new Turtle(gameEngine, 6583, 69);
+    var coins = [];
+    coins[0] = new Coin(gameEngine, 850, 166);
+    coins[1] = new Coin(gameEngine, 895, 125);
+    coins[2] = new Coin(gameEngine, 945, 166);
+    coins[3] = new Coin(gameEngine, 1000, 235);
+    coins[4] = new Coin(gameEngine, 1045, 195);
+    coins[5] = new Coin(gameEngine, 1095, 235);
+    coins[6] = new Coin(gameEngine, 1696, 206);
+    coins[7] = new Coin(gameEngine, 1720, 206);
+    coins[8] = new Coin(gameEngine, 2010, 96);
+    coins[9] = new Coin(gameEngine, 2010, 50);
+    coins[10] = new Coin(gameEngine, 2055, 96);
+    coins[11] = new Coin(gameEngine, 2055, 50);
+    coins[12] = new Coin(gameEngine, 2100, 96);
+    coins[13] = new Coin(gameEngine, 2100, 50);
+    coins[14] = new Coin(gameEngine, 2182, 175);
+    coins[15] = new Coin(gameEngine, 2212, 175);
+    coins[16] = new Coin(gameEngine, 2300, 242);
+    coins[17] = new Coin(gameEngine, 2330, 242);
+    coins[18] = new Coin(gameEngine, 2405, 312);
+    coins[19] = new Coin(gameEngine, 2435, 312);
+    coins[20] = new Coin(gameEngine, 3190, 297);
+    coins[21] = new Coin(gameEngine, 3190, 257);
+    coins[22] = new Coin(gameEngine, 3290, 297);
+    coins[23] = new Coin(gameEngine, 3290, 257);
+    coins[24] = new Coin(gameEngine, 3320, 297);
+    coins[25] = new Coin(gameEngine, 3320, 257);
+    coins[26] = new Coin(gameEngine, 3350, 297);
+    coins[27] = new Coin(gameEngine, 3350, 257);
+    coins[28] = new Coin(gameEngine, 3380, 297);
+    coins[29] = new Coin(gameEngine, 3380, 257);
+    coins[30] = new Coin(gameEngine, 3535, 225);
+    coins[31] = new Coin(gameEngine, 3535, 187);
+    coins[32] = new Coin(gameEngine, 3900, 212);
+    coins[33] = new Coin(gameEngine, 3930, 212);
+    coins[34] = new Coin(gameEngine, 3960, 212);
+    coins[35] = new Coin(gameEngine, 3925, 288);
+    coins[36] = new Coin(gameEngine, 3925, 327);
+    coins[37] = new Coin(gameEngine, 3960, 340);
+    coins[38] = new Coin(gameEngine, 4000, 340);
+    coins[39] = new Coin(gameEngine, 4030, 340);
+    coins[40] = new Coin(gameEngine, 4060, 340);
+    coins[41] = new Coin(gameEngine, 4090, 340);
+    coins[42] = new Coin(gameEngine, 4025, 197);
+    coins[43] = new Coin(gameEngine, 4025, 235);
+    coins[44] = new Coin(gameEngine, 4025, 277);
+    coins[45] = new Coin(gameEngine, 4119, 197);
+    coins[46] = new Coin(gameEngine, 4119, 235);
+    coins[47] = new Coin(gameEngine, 4119, 277);
+    coins[48] = new Coin(gameEngine, 3967, 125);
+    coins[49] = new Coin(gameEngine, 3997, 125);
+    coins[50] = new Coin(gameEngine, 4027, 125);
+    coins[51] = new Coin(gameEngine, 4057, 125);
+    coins[52] = new Coin(gameEngine, 4087, 125);
+    coins[53] = new Coin(gameEngine, 4177, 125);
+    coins[54] = new Coin(gameEngine, 4207, 125);
+    coins[55] = new Coin(gameEngine, 4237, 125);
+    coins[56] = new Coin(gameEngine, 4267, 125);
+    coins[57] = new Coin(gameEngine, 4217, 200);
+    coins[58] = new Coin(gameEngine, 4217, 244);
+    coins[59] = new Coin(gameEngine, 4292, 190);
+    coins[60] = new Coin(gameEngine, 4292, 284);
+    coins[61] = new Coin(gameEngine, 4329, 125);
+    coins[62] = new Coin(gameEngine, 4374, 125);
+    coins[63] = new Coin(gameEngine, 4424, 125);
+    coins[64] = new Coin(gameEngine, 4450, 175);
+    coins[65] = new Coin(gameEngine, 4418, 212);
+    coins[66] = new Coin(gameEngine, 4355, 235);
+    coins[67] = new Coin(gameEngine, 4355, 278);
+    coins[68] = new Coin(gameEngine, 4418, 297);
+    coins[69] = new Coin(gameEngine, 4220, 406);
+    coins[70] = new Coin(gameEngine, 4270, 406);
+    coins[71] = new Coin(gameEngine, 4320, 406);
+    coins[72] = new Coin(gameEngine, 4370, 406);
+    coins[73] = new Coin(gameEngine, 4420, 406);
+    coins[74] = new Coin(gameEngine, 5250, 25);
+    coins[75] = new Coin(gameEngine, 5350, 25);
+    coins[76] = new Coin(gameEngine, 5450, 25);
+    coins[77] = new Coin(gameEngine, 5550, 25);
+    coins[78] = new Coin(gameEngine, 5650, 25);
+    coins[79] = new Coin(gameEngine, 5750, 25);
+    coins[80] = new Coin(gameEngine, 5850, 25);
+    coins[81] = new Coin(gameEngine, 5250, 129);
+    coins[82] = new Coin(gameEngine, 5350, 129);
+    coins[83] = new Coin(gameEngine, 5450, 129);
+    coins[84] = new Coin(gameEngine, 5550, 129);
+    coins[85] = new Coin(gameEngine, 5650, 129);
+    coins[86] = new Coin(gameEngine, 5750, 129);
+    coins[87] = new Coin(gameEngine, 5850, 129);
+    coins[88] = new Coin(gameEngine, 5250, 217);
+    coins[89] = new Coin(gameEngine, 5250, 217);
+    coins[90] = new Coin(gameEngine, 5350, 217);
+    coins[91] = new Coin(gameEngine, 5450, 217);
+    coins[92] = new Coin(gameEngine, 5550, 217);
+    coins[93] = new Coin(gameEngine, 5650, 217);
+    coins[94] = new Coin(gameEngine, 5750, 217);
+    coins[95] = new Coin(gameEngine, 5850, 217);
+    coins[96] = new Coin(gameEngine, 5250, 327);
+    coins[97] = new Coin(gameEngine, 5350, 327);
+    coins[98] = new Coin(gameEngine, 5450, 327);
+    coins[99] = new Coin(gameEngine, 5550, 327);
+    coins[100] = new Coin(gameEngine, 5650, 327);
+    coins[101] = new Coin(gameEngine, 5750, 327);
+    coins[102] = new Coin(gameEngine, 5850, 327);
+    coins[103] = new Coin(gameEngine, 5250, 397);
+    coins[104] = new Coin(gameEngine, 5350, 397);
+    coins[105] = new Coin(gameEngine, 5450, 397);
+    coins[106] = new Coin(gameEngine, 5550, 397);
+    coins[107] = new Coin(gameEngine, 5650, 397);
+    coins[108] = new Coin(gameEngine, 5750, 397);
+    coins[109] = new Coin(gameEngine, 5850, 397);
+    coins[110] = new Coin(gameEngine, 6161, 72);
+    coins[111] = new Coin(gameEngine, 6296, 72);
+    coins[112] = new Coin(gameEngine, 6456, 72);
+    coins[113] = new Coin(gameEngine, 6586, 72);
+    coins[114] = new Coin(gameEngine, 6192, 300);
+    coins[115] = new Coin(gameEngine, 6299, 300);
+    coins[116] = new Coin(gameEngine, 6406, 300);
+    coins[117] = new Coin(gameEngine, 6522, 300);
 
-    var coin = new Coin(gameEngine, 822, 168);
-
-    gameEngine.addEntity(mario);
-    gameEngine.mario = mario;
     var pg = new PlayGame(gameEngine, 320, 350);
     gameEngine.addEntity(pg);
 
-    for (var x = 0; x < 11; x++) {
+    gameEngine.addEntity(mario);
+    gameEngine.mario = mario;
+
+    for (var x = 0; x < turtles.length; x++) {
         gameEngine.addEntity(turtles[x]);
     }
-    gameEngine.addEntity(coin);
+    for (var y = 0; y < coins.length; y++) {
+        gameEngine.addEntity(coins[y]);
+    }
 
     gameEngine.init(ctx);
     gameEngine.start();
